@@ -40,6 +40,7 @@ def create_temp_table_and_load(
     connection: BaseDatabaseWrapper,
     cursor: CursorWrapper,
     field_names: Optional[Sequence[str]] = None,
+    exclude_field_names: Optional[Sequence[str]] = [],
     table_name: Optional[str] = None,
 ) -> str:
     if not models:
@@ -48,9 +49,17 @@ def create_temp_table_and_load(
     model_meta = models[0]._meta
     source_table_name = model_meta.db_table
     table_name = table_name or generate_table_name(source_table_name=source_table_name)
+
     fields, field_names = get_fields_and_names(
         field_names, model_meta, include_auto_fields=True
     )
+    fields = [field for field in fields if field.name not in exclude_field_names]
+    field_names = [
+        field_name
+        for field_name in field_names
+        if field_name not in exclude_field_names
+    ]
+
     temp_table_query = create_temp_table(
         temp_table_name=table_name,
         source_table_name=source_table_name,
@@ -94,6 +103,7 @@ def bulk_load_models_with_queries(
     loading_table_name: str,
     load_queries: Sequence[Composable],
     field_names: Sequence[str] = None,
+    exclude_field_names: Sequence[str] = [],
     return_models: bool = False,
 ):
     start_time = monotonic()
@@ -114,6 +124,7 @@ def bulk_load_models_with_queries(
             models=models,
             table_name=loading_table_name,
             field_names=field_names,
+            exclude_field_names=exclude_field_names,
             cursor=cursor,
             connection=connection,
         )
@@ -318,6 +329,7 @@ def bulk_upsert_models(
     update_if_null_field_names: Sequence[str] = None,
     update_where: Callable[[Sequence[Field], str, str], Composable] = None,
     return_models: bool = False,
+    exclude_field_names: Iterable[str] = [],
 ):
     """
     UPSERT a batch of models. Replicates [UPSERTing](https://wiki.postgresql.org/wiki/UPSERT) for a large set of models.
@@ -347,7 +359,14 @@ def bulk_upsert_models(
     update_if_null_field_names = update_if_null_field_names or []
     model_meta = models[0]._meta
     table_name = model_meta.db_table
+
     fields, field_names = get_fields_and_names(None, model_meta)
+    fields = [field for field in fields if field.name not in exclude_field_names]
+    field_names = [
+        field_name
+        for field_name in field_names
+        if field_name not in exclude_field_names
+    ]
 
     pk_fields = get_pk_fields(pk_field_names, model_meta)
     pk_field_names = [field.name for field in pk_fields]
@@ -407,6 +426,7 @@ def bulk_upsert_models(
         models=models,
         loading_table_name=loading_table_name,
         load_queries=queries,
+        exclude_field_names=exclude_field_names,
         return_models=return_models,
     )
 
